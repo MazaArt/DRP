@@ -4,39 +4,38 @@ from scipy.stats import norm
 from GeometricBrownianMotion import GBM
 
 def Value_American_Put_Option(future_prices, strike_price, Nsteps, num_paths, rate, time):
-    dt = time/Nsteps
-    df = np.exp(-rate * dt)   
+    time_step = time/Nsteps
+    discount_factor = np.exp(-rate * time_step)   
     
     exercise_payoff = np.maximum(strike_price - future_prices, 0)             
     
-    cf = exercise_payoff.copy()
-    cf[:] = 0
-    cf.iloc[:,Nsteps] = exercise_payoff.iloc[:, Nsteps]
+    cash_flow = exercise_payoff.copy()
+    cash_flow[:] = 0
+    cash_flow.iloc[:,Nsteps] = exercise_payoff.iloc[:, Nsteps]
     
     for t in range(Nsteps-1,0,-1):
-        table_t = pd.DataFrame({"Y":cf.iloc[:,t+1]*df, "X":future_prices.iloc[:,t]})
+        table_t = pd.DataFrame({"Y":cash_flow.iloc[:,t+1]*discount_factor, "X":future_prices.iloc[:,t]})
         id_money_t = future_prices[future_prices.iloc[:, t] < strike_price].index
         
         table_t_inmoney=table_t.loc[id_money_t]
         rg_t = np.polyfit(table_t_inmoney["X"], table_t_inmoney["Y"], 2)
         C_t = np.polyval(rg_t, future_prices.loc[id_money_t].iloc[:,t])
     
-        cf.loc[id_money_t,t] = np.where(exercise_payoff.loc[id_money_t,t] > C_t, 
+        cash_flow.loc[id_money_t,t] = np.where(exercise_payoff.loc[id_money_t,t] > C_t, 
             exercise_payoff.loc[id_money_t,t], 0)
 
         for tt in range(t, Nsteps):
-            cf.loc[id_money_t,tt+1] = np.where(cf.loc[id_money_t,t] > 0, 
-                0, cf.loc[id_money_t,tt+1])
+            cash_flow.loc[id_money_t,tt+1] = np.where(cash_flow.loc[id_money_t,t] > 0, 
+                0, cash_flow.loc[id_money_t,tt+1])
 
     Sum_DCF = 0
-
     for t in range(Nsteps,0,-1):
-        Sum_DCF = sum(cf.loc[:,t])*np.exp(-dt*rate*t) + Sum_DCF
+        Sum_DCF += sum(cash_flow.loc[:,t])*np.exp(-time_step*rate*t)
 
     Option_Value = Sum_DCF/num_paths
 
     # return both cashflow and the price of the put option
-    return cf, Option_Value
+    return cash_flow, Option_Value
 
 n_simulations = 100
 simulation_days = 5
